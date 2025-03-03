@@ -1,8 +1,6 @@
-import org.openqa.selenium.Alert;
-import org.openqa.selenium.By;
-import org.openqa.selenium.WebDriver;
-import org.openqa.selenium.WebElement;
+import org.openqa.selenium.*;
 import org.openqa.selenium.chrome.ChromeDriver;
+import org.openqa.selenium.interactions.Actions;
 import org.openqa.selenium.support.ui.ExpectedConditions;
 import org.openqa.selenium.support.ui.Select;
 import org.openqa.selenium.support.ui.WebDriverWait;
@@ -13,11 +11,13 @@ import java.util.Set;
 
 public class EndToEndLocator {
     static WebDriver driver;
-    static WebDriverWait wait;  // Declare at class level
+    static WebDriverWait wait;
+    static Actions actions;// Declare at class level
 
     public static void main(String[] args) throws InterruptedException {
         System.setProperty("webdriver.chrome.driver", "src/main/resources/chromedriver.exe");
         driver = new ChromeDriver();
+        actions = new Actions(driver); // TAMBAHKAN INI
         wait = new WebDriverWait(driver, Duration.ofSeconds(10)); // TAMBAHKAN INI
         driver.get("https://rahulshettyacademy.com/AutomationPractice/");
         driver.manage().timeouts().implicitlyWait(Duration.ofSeconds(5));
@@ -29,7 +29,8 @@ public class EndToEndLocator {
         checkBoxExample();
         SwitchWindowExample();
         SwitchTabExample();
-        testAlertsAndConfirmations();// Panggil method checkbox
+        testAlertsAndConfirmations();
+        testMouseHover();// Panggil method checkbox
         driver.quit();
     }
 
@@ -133,7 +134,8 @@ public class EndToEndLocator {
         Thread.sleep(2000);  // Tunggu setelah switch window
 
 
-//// Optional: Close new window and return to original
+
+     /// Optional: Close new window and return to original
         driver.close();
         Thread.sleep(2000);  // Tunggu setelah switch window
         driver.switchTo().window(originalWindowHandle);
@@ -231,5 +233,72 @@ public class EndToEndLocator {
 
         System.out.println("Test skenario alerts berhasil!");
     }
+    public static void testMouseHover() {
+        WebElement hoverButton = wait.until(ExpectedConditions.presenceOfElementLocated(By.id("mousehover")));
 
+        // Handle Hover Top
+        handleHoverAction(hoverButton, "Top", EndToEndLocator::verifyPageScrollToTop);
+
+        // Handle Hover Reload
+        handleHoverAction(hoverButton, "Reload", EndToEndLocator::verifyPageReload);
     }
+
+    private static void handleHoverAction(WebElement hoverButton, String linkText, Runnable verification) {
+        try {
+            // Scroll ke element dan beri margin 100px dari atas
+            ((JavascriptExecutor) driver).executeScript(
+                    "window.scrollTo(0, arguments[0].getBoundingClientRect().top - 100);",
+                    hoverButton
+            );
+
+            // Hover dengan action chain yang lebih stabil
+            actions.moveToElement(hoverButton)
+                    .pause(1500)
+                    .perform();
+
+            // Temukan link dengan text yang sesuai
+            WebElement link = wait.until(ExpectedConditions.elementToBeClickable(
+                    By.xpath(String.format("//div[@class='mouse-hover-content']/a[normalize-space()='%s']", linkText))
+            ));
+
+            // Klik dengan JavaScript sebagai fallback
+            ((JavascriptExecutor) driver).executeScript("arguments[0].click();", link);
+
+            // Jalankan verifikasi
+            verification.run();
+
+        } catch (Exception e) {
+            System.out.println("Gagal memproses " + linkText + ": " + e.getMessage());
+            e.printStackTrace();
+        }
+    }
+
+    private static void verifyPageScrollToTop() {
+        try {
+            new WebDriverWait(driver, Duration.ofSeconds(5))
+                    .until(d -> (Long) ((JavascriptExecutor) d)
+                            .executeScript("return window.pageYOffset;") == 0);
+
+            System.out.println("✅ Scroll ke top berhasil");
+        } catch (Exception e) {
+            System.out.println("❌ Gagal scroll ke top");
+            System.out.println("Posisi scroll saat ini: " +
+                    ((JavascriptExecutor) driver).executeScript("return window.pageYOffset;"));
+        }
+    }
+
+    private static void verifyPageReload() {
+        try {
+            // Verifikasi dengan kombinasi URL dan element kunci
+            wait.until(ExpectedConditions.and(
+                    d -> d.getCurrentUrl().equals("https://rahulshettyacademy.com/AutomationPractice/"),
+                    ExpectedConditions.presenceOfElementLocated(By.id("mousehover"))
+            ));
+
+            System.out.println("✅ Reload berhasil - Halaman aktif");
+        } catch (Exception e) {
+            System.out.println("❌ Gagal reload");
+            System.out.println("URL saat ini: " + driver.getCurrentUrl());
+        }
+    }
+}
